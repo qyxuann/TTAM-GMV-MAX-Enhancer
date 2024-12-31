@@ -12,9 +12,6 @@ function waitForTable() {
 function initializePlugin() {
   const targetTable = document.querySelector('.theme-arco-table-container');
   
-  // 创建控制面板
-  createControl();
-  
   // 监听表格变化
   const observer = new MutationObserver((mutations) => {
     const container = document.querySelector('.theme-arco-table-container');
@@ -28,57 +25,64 @@ function initializePlugin() {
     childList: true,
     subtree: true
   });
+
+  // 初始化列宽调整功能
+  initializeColumnResize();
 }
 
-// 创建控制面板
-function createControl() {
-  // 先移除已存在的控制面板
-  const existingControl = document.querySelector('.table-enhancer-control');
-  if (existingControl) {
-    existingControl.remove();
-  }
+// 初始化列宽调整功能
+function initializeColumnResize() {
+  const container = document.querySelector('.theme-arco-table-container');
+  const table = container.querySelector('table');
+  const headers = table.querySelectorAll('.theme-arco-table-th');
 
-  const control = document.createElement('div');
-  control.className = 'table-enhancer-control';
-  control.innerHTML = `
-    <button id="expandBtn" class="enhancer-btn">展开表格</button>
-    <div class="scale-control">
-      <input type="range" id="scaleSlider" min="50" max="100" value="100">
-      <span id="scaleValue">100%</span>
-    </div>
-  `;
-  
-  document.body.appendChild(control);
-  
-  // 强制设置样式
-  control.style.cssText = `
-    position: fixed !important;
-    bottom: 20px !important;
-    right: 20px !important;
-    z-index: 9999 !important;
-  `;
-  
-  // 展开按钮事件
-  document.getElementById('expandBtn').addEventListener('click', () => {
-    const container = document.querySelector('.theme-arco-table-container');
-    const isExpanded = container.classList.toggle('expanded');
-    const btn = document.getElementById('expandBtn');
-    
-    if (isExpanded) {
-      expandTable();
-      btn.textContent = '还原表格';
-    } else {
-      resetTable();
-      btn.textContent = '展开表格';
+  headers.forEach((header) => {
+    // 创建拖动手柄
+    const resizer = document.createElement('div');
+    resizer.className = 'column-resizer';
+    header.appendChild(resizer);
+
+    let startX, startWidth;
+    let currentCol;
+
+    resizer.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // 获取当前列的索引和宽度
+      const colIndex = Array.from(header.parentElement.children).indexOf(header);
+      currentCol = table.querySelector(`colgroup col:nth-child(${colIndex + 1})`);
+      startWidth = parseInt(currentCol.style.width) || 100;
+      startX = e.pageX;
+
+      // 添加拖动状态
+      container.classList.add('resizing');
+
+      // 添加临时事件监听器
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+
+    function onMouseMove(e) {
+      if (!startX) return;
+
+      const diffX = e.pageX - startX;
+      const newWidth = Math.max(50, startWidth + diffX); // 最小宽度50px
+      currentCol.style.width = `${newWidth}px`;
+
+      // 如果表格已展开，重新计算总宽度
+      if (container.classList.contains('expanded')) {
+        expandTable();
+      }
     }
-  });
-  
-  // 缩放控制
-  document.getElementById('scaleSlider').addEventListener('input', (e) => {
-    const scale = e.target.value / 100;
-    document.getElementById('scaleValue').textContent = e.target.value + '%';
-    const container = document.querySelector('.theme-arco-table-container');
-    container.style.transform = `scale(${scale})`;
+
+    function onMouseUp() {
+      startX = null;
+      currentCol = null;
+      container.classList.remove('resizing');
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    }
   });
 }
 
@@ -108,19 +112,21 @@ function expandTable() {
   container.style.maxWidth = 'none';
   scrollContainer.style.overflowX = 'visible';
   
-  // 只处理数据单元格的固定列
+  // 修改固定列处理
   const fixedColumns = container.querySelectorAll('td.theme-arco-table-col-fixed-left');
   fixedColumns.forEach(col => {
     col.style.position = 'sticky';
     col.style.zIndex = '2';
-    col.style.background = '#fff';
+    col.style.background = '#fff';  // 数据单元格保持白色背景
   });
 
-  // 只设置表头的位置属性
+  // 修改表头固定列处理 - 移除背景色设置，使用CSS控制
   const fixedHeaders = container.querySelectorAll('th.theme-arco-table-col-fixed-left');
   fixedHeaders.forEach(header => {
     header.style.position = 'sticky';
     header.style.zIndex = '2';
+    // 移除背景色设置，让它继承原始表头的背景色
+    header.style.removeProperty('background');
   });
 }
 
@@ -151,10 +157,32 @@ function resetTable() {
       col.style.removeProperty('background');
     }
   });
-  
-  document.getElementById('scaleSlider').value = 100;
-  document.getElementById('scaleValue').textContent = '100%';
 }
+
+// 监听来自popup的消息
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  const container = document.querySelector('.theme-arco-table-container');
+  
+  switch (request.action) {
+    case 'toggleExpand':
+      const isExpanded = container.classList.toggle('expanded');
+      if (isExpanded) {
+        expandTable();
+      } else {
+        resetTable();
+      }
+      sendResponse({ isExpanded });
+      break;
+      
+    case 'setScale':
+      const scale = request.scale / 100;
+      container.style.transform = `scale(${scale})`;
+      sendResponse({ success: true });
+      break;
+  }
+  
+  return true;
+});
 
 // 启动插件
 waitForTable();
