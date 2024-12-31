@@ -6,11 +6,13 @@
   "permissions": [
     "activeTab"
   ],
+  "action": {
+    "default_popup": "popup.html"
+  },
   "content_scripts": [
     {
       "matches": [
-        "*://*.tiktok.com/*",
-        "*://*.bytedance.com/*"
+        "https://ads.tiktok.com/i18n/gmv-max/*"
       ],
       "js": ["content.js"],
       "css": ["styles.css"],
