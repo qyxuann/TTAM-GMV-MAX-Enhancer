@@ -2,6 +2,7 @@
 function waitForTable() {
   const targetTable = document.querySelector('.theme-arco-table-container');
   if (targetTable) {
+    console.log('插件初始化-waitForTable')
     initializePlugin();
   } else {
     setTimeout(waitForTable, 100);
@@ -10,6 +11,7 @@ function waitForTable() {
 
 // 初始化插件
 function initializePlugin() {
+  console.log('插件初始化-initializePlugin')
   const targetTable = document.querySelector('.theme-arco-table-container');
   
   // 监听表格变化
@@ -164,6 +166,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   const container = document.querySelector('.theme-arco-table-container');
   
   switch (request.action) {
+    case 'reinit':
+      waitForTable();
+      sendResponse({ success: true });
+      break;
     case 'toggleExpand':
       const isExpanded = container.classList.toggle('expanded');
       if (isExpanded) {

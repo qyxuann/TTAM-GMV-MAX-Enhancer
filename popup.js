@@ -11,12 +11,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 展开按钮点击事件
   document.getElementById('expandBtn').addEventListener('click', async () => {
     const btn = document.getElementById('expandBtn');
-    chrome.tabs.sendMessage(tab.id, { action: 'toggleExpand' }, (response) => {
-      if (response && response.isExpanded) {
-        btn.textContent = '还原表格';
-      } else {
-        btn.textContent = '展开表格';
-      }
+    // 先发送 reinit 消息
+    chrome.tabs.sendMessage(tab.id, { action: 'reinit' }, () => {
+      // 再发送 toggleExpand 消息
+      chrome.tabs.sendMessage(tab.id, { action: 'toggleExpand' }, (response) => {
+        if (response && response.isExpanded) {
+          btn.textContent = '还原表格';
+        } else {
+          btn.textContent = '展开表格';
+        }
+      });
     });
   });
 
